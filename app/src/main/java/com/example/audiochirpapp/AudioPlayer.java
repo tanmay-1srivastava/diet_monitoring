@@ -13,6 +13,16 @@ public class AudioPlayer {
     private static final int SAMPLE_RATE = 44100; // 44.1kHz
     private AudioTrack audioTrack;
     private boolean isPlaying = false;
+    private DataManager dataManager;
+
+    /**
+     * Sets the DataManager for saving transmitted signals
+     *
+     * @param dataManager DataManager instance to use
+     */
+    public void setDataManager(DataManager dataManager) {
+        this.dataManager = dataManager;
+    }
 
     /**
      * Plays a chirp with different parameters for left and right channels
@@ -35,6 +45,11 @@ public class AudioPlayer {
                 rightParams.getStartFrequency(),
                 rightParams.getEndFrequency(),
                 rightParams.getDuration());
+
+        // Save the transmitted signal if DataManager is available
+        if (dataManager != null) {
+            dataManager.saveTransmittedData(leftSamples, rightSamples);
+        }
 
         // Interleave samples for stereo output
         short[] stereoSamples = AudioUtils.interleave(leftSamples, rightSamples);

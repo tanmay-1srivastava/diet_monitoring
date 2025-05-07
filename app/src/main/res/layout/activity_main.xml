@@ -156,7 +156,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="0.7"
-                android:max="5000"
+                android:max="300000"
                 android:progress="1000" />
 
             <EditText
@@ -217,6 +217,14 @@
             android:gravity="center"
             android:text="Ready"
             android:textSize="16sp" />
+
+        <!-- Export to External Storage button -->
+        <Button
+            android:id="@+id/exportButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Export to External Storage" />
 
     </LinearLayout>
 </ScrollView>

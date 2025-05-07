@@ -1,10 +1,17 @@
 package com.example.audiochirpapp;
 
 import android.Manifest;
+import android.net.Uri;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -12,9 +19,17 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -72,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
         // Initialize audio components
         audioPlayer = new AudioPlayer();
         audioRecorder = new AudioRecorder();
-        dataManager = new DataManager();
+        dataManager = new DataManager(this);
 
         // Add a toast for confirmation when app starts
         Toast.makeText(this, "Audio Chirp App Started", Toast.LENGTH_SHORT).show();
@@ -118,6 +133,15 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // Export button listener
+        Button exportButton = findViewById(R.id.exportButton);
+        exportButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                exportToDownloads();
+            }
+        });
+
         // SeekBar listeners
         setupSeekBarListener(leftFreqSeekBar, leftFreqValue);
         setupSeekBarListener(leftBwSeekBar, leftBwValue);
@@ -130,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
         setupEditTextListener(leftBwValue, leftBwSeekBar, 5000);
         setupEditTextListener(rightFreqValue, rightFreqSeekBar, 20000);
         setupEditTextListener(rightBwValue, rightBwSeekBar, 5000);
-        setupEditTextListener(durationValue, durationSeekBar, 5000);
+        setupEditTextListener(durationValue, durationSeekBar, 300000);
 
         // Filename EditText listener
         outputFilename.addTextChangedListener(new TextWatcher() {
@@ -285,6 +309,8 @@ public class MainActivity extends AppCompatActivity {
                     // Log chirp parameters to CSV
                     dataManager.logChirpParameters(leftParams, rightParams);
 
+                    audioPlayer.setDataManager(dataManager);
+
                     // Play the chirp
                     audioPlayer.playChirp(leftParams, rightParams);
 
@@ -338,7 +364,82 @@ public class MainActivity extends AppCompatActivity {
         statusText.setText("Ready");
 
         // Notify user
-        Toast.makeText(this, "Data saved to " + dataManager.getOutputDirectory() + "/" + filename,
+        String directory = dataManager.getOutputDirectory();
+        Toast.makeText(this, "Data saved to " + filename, Toast.LENGTH_LONG).show();
+        Log.i("MainActivity", "Files location: " + directory);
+    }
+
+    private void exportToDownloads() {
+        File sourceDir = new File(getFilesDir(), "AudioChirpData");
+        File[] files = sourceDir.listFiles();
+
+        if (files == null || files.length == 0) {
+            Toast.makeText(this, "No files to export", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // For Android 10+ (API 29+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            exportWithMediaStore(files);
+        } else {
+            // For older Android versions
+            exportDirectly(files);
+        }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.Q)
+    private void exportWithMediaStore(File[] files) {
+        ContentResolver resolver = getContentResolver();
+
+        for (File file : files) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, file.getName());
+            values.put(MediaStore.Downloads.MIME_TYPE, "text/csv");
+            values.put(MediaStore.Downloads.RELATIVE_PATH,
+                    Environment.DIRECTORY_DOWNLOADS + "/AudioChirpData");
+
+            Uri uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+
+            try (InputStream in = new FileInputStream(file);
+                 OutputStream out = resolver.openOutputStream(uri)) {
+
+                byte[] buffer = new byte[1024];
+                int length;
+                while ((length = in.read(buffer)) > 0) {
+                    out.write(buffer, 0, length);
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        Toast.makeText(this, "Files exported to Downloads/AudioChirpData",
+                Toast.LENGTH_LONG).show();
+    }
+
+    private void exportDirectly(File[] files) {
+        File destDir = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_DOWNLOADS), "AudioChirpData");
+
+        if (!destDir.exists()) {
+            destDir.mkdirs();
+        }
+
+        for (File file : files) {
+            File destFile = new File(destDir, file.getName());
+            try (FileInputStream in = new FileInputStream(file);
+                 FileOutputStream out = new FileOutputStream(destFile)) {
+
+                byte[] buffer = new byte[1024];
+                int length;
+                while ((length = in.read(buffer)) > 0) {
+                    out.write(buffer, 0, length);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        Toast.makeText(this, "Files exported to Downloads/AudioChirpData",
                 Toast.LENGTH_LONG).show();
     }
 
